@@ -14,8 +14,12 @@
 package main
 
 import (
+	//"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -34,6 +38,16 @@ func main() {
 		listenAddress = kingpin.Flag("web.listen-address", "Address on which to expose metrics and web interface.").Default(":9100").String()
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 	)
+
+	ssnExec := exec.Command("dmidecode", "-s", "system-serial-number")
+	ssnCodeBytes, err := ssnExec.Output()
+	ssnCode := ""
+	if err == nil {
+		ssnCode = string(ssnCodeBytes)
+		ssnCode = strings.TrimSuffix(ssnCode, "\n")
+	} else {
+		ssnCode = os.Getenv("kubernetes_io_ssncode")
+	}
 
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("node_exporter"))
@@ -59,7 +73,8 @@ func main() {
 		promhttp.HandlerOpts{
 			ErrorLog:      log.NewErrorLogger(),
 			ErrorHandling: promhttp.ContinueOnError,
-		})
+		},
+		ssnCode)
 
 	// TODO(ts): Remove deprecated and problematic InstrumentHandler usage.
 	http.Handle(*metricsPath, prometheus.InstrumentHandler("prometheus", handler))

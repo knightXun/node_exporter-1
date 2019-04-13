@@ -43,6 +43,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
+	client_model "github.com/prometheus/client_model/go"
 )
 
 const (
@@ -75,12 +76,12 @@ func giveBuf(buf *bytes.Buffer) {
 // HandlerOpts, create it with HandlerFor with prometheus.DefaultGatherer and
 // your desired HandlerOpts.
 func Handler() http.Handler {
-	return HandlerFor(prometheus.DefaultGatherer, HandlerOpts{})
+	return HandlerFor(prometheus.DefaultGatherer, HandlerOpts{}, "")
 }
 
 // HandlerFor returns an http.Handler for the provided Gatherer. The behavior
 // of the Handler is defined by the provided HandlerOpts.
-func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
+func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts, ssnCode string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		mfs, err := reg.Gather()
 		if err != nil {
@@ -98,6 +99,16 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 			case HTTPErrorOnError:
 				http.Error(w, "An error has occurred during metrics gathering:\n\n"+err.Error(), http.StatusInternalServerError)
 				return
+			}
+		}
+
+		for _, mf := range mfs {
+			name := "kubernetes_io_ssncode"
+			for _, metric := range mf.Metric {
+				metric.Label = append(metric.Label, &client_model.LabelPair{
+					Name: &name,
+					Value: &ssnCode,
+				})
 			}
 		}
 
